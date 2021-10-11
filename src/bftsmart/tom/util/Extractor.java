@@ -32,5 +32,5 @@ public interface Extractor {
      * @param lastReceived Last reply received from the replicas. This is an index in relation to the `replies` parameter.
      * @return 
      */
-    TOMMessage extractResponse(TOMMessage[] replies, int sameContent, int lastReceived);
+    ExtractedResponse extractResponse(TOMMessage[] replies, int sameContent, int lastReceived);
 }

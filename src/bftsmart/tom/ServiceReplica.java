@@ -354,8 +354,7 @@ public class ServiceReplica {
                                         SVController.getCurrentViewId(), request.getContent(),
                                         request.getPrivateContent(), msgCtx);
                                 
-                                if (response != null) {
-                                    
+                                if (response != null && response.reply != null && response.reply.getCommonContent() != null) {
                                     logger.debug("sending reply to " + response.getSender());
                                     replier.manageReply(response, msgCtx);
                                 }

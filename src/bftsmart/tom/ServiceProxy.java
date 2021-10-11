@@ -20,6 +20,7 @@ import bftsmart.reconfiguration.views.View;
 import bftsmart.tom.core.TOMSender;
 import bftsmart.tom.core.messages.TOMMessage;
 import bftsmart.tom.core.messages.TOMMessageType;
+import bftsmart.tom.util.ExtractedResponse;
 import bftsmart.tom.util.Extractor;
 import bftsmart.tom.util.KeyLoader;
 import bftsmart.tom.util.TOMUtil;
@@ -54,7 +55,7 @@ public class ServiceProxy extends TOMSender {
 	private int replyQuorum = 0; // size of the reply quorum
 	private TOMMessage replies[] = null; // Replies from replicas are stored here
 	private int receivedReplies = 0; // Number of received replies
-	private TOMMessage response = null; // Reply delivered to the application
+	private ExtractedResponse response = null; // Reply delivered to the application
 	private int invokeTimeout = 40000;
 	private Comparator<byte[]> comparator;
 	private Extractor extractor;
@@ -66,7 +67,7 @@ public class ServiceProxy extends TOMSender {
 	/**
 	 * Constructor
 	 *
-	 * @see bellow
+	 * see bellow
 	 */
 	public ServiceProxy(int processId) {
 		this(processId, null, null, null, null);
@@ -75,7 +76,7 @@ public class ServiceProxy extends TOMSender {
 	/**
 	 * Constructor
 	 *
-	 * @see bellow
+	 * see bellow
 	 */
 	public ServiceProxy(int processId, String configHome) {
 		this(processId, configHome, null, null, null);
@@ -84,7 +85,7 @@ public class ServiceProxy extends TOMSender {
 	/**
 	 * Constructor
 	 *
-	 * @see bellow
+	 * see bellow
 	 */
 	public ServiceProxy(int processId, String configHome, KeyLoader loader) {
 		this(processId, configHome, null, null, loader);
@@ -121,8 +122,9 @@ public class ServiceProxy extends TOMSender {
 		extractor = (replyExtractor != null) ? replyExtractor : new Extractor() {
 
 			@Override
-			public TOMMessage extractResponse(TOMMessage[] replies, int sameContent, int lastReceived) {
-				return replies[lastReceived];
+			public ExtractedResponse extractResponse(TOMMessage[] replies, int sameContent, int lastReceived) {
+				TOMMessage reply = replies[lastReceived];
+				return new ExtractedResponse(reply.getViewID(), reply.getContent());
 			}
 		};
 	}
@@ -176,6 +178,11 @@ public class ServiceProxy extends TOMSender {
 	 * @return The reply from the replicas related to request
 	 */
 	public byte[] invokeOrdered(byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData, byte metadata) {
+		ExtractedResponse response = invoke(TOMMessageType.ORDERED_REQUEST, requestCommonData, requestPrivateData, metadata);
+		return response.getContent();
+	}
+
+	public ExtractedResponse invokeOrdered2(byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData, byte metadata) {
 		return invoke(TOMMessageType.ORDERED_REQUEST, requestCommonData, requestPrivateData, metadata);
 	}
 
@@ -188,6 +195,11 @@ public class ServiceProxy extends TOMSender {
 	 * @return The reply from the replicas related to request
 	 */
 	public byte[] invokeUnordered(byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData, byte metadata) {
+		ExtractedResponse response = invoke(TOMMessageType.UNORDERED_REQUEST, requestCommonData, requestPrivateData, metadata);
+		return response.getContent();
+	}
+
+	public ExtractedResponse invokeUnordered2(byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData, byte metadata) {
 		return invoke(TOMMessageType.UNORDERED_REQUEST, requestCommonData, requestPrivateData, metadata);
 	}
 
@@ -202,7 +214,8 @@ public class ServiceProxy extends TOMSender {
 	 * @return The reply from the replicas related to request
 	 */
 	public byte[] invokeUnorderedHashed(byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData, byte metadata) {
-		return invoke(TOMMessageType.UNORDERED_HASHED_REQUEST, requestCommonData, requestPrivateData, metadata);
+		ExtractedResponse response = invoke(TOMMessageType.UNORDERED_HASHED_REQUEST, requestCommonData, requestPrivateData, metadata);
+		return response.getContent();
 	}
 
 	/**
@@ -216,7 +229,7 @@ public class ServiceProxy extends TOMSender {
 	 *
 	 * @return The reply from the replicas related to request
 	 */
-	public byte[] invoke(TOMMessageType reqType, byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData,
+	public ExtractedResponse invoke(TOMMessageType reqType, byte[] requestCommonData, Map<Integer, byte[]> requestPrivateData,
 						 byte metadata) {
 
 		try {
@@ -298,7 +311,7 @@ public class ServiceProxy extends TOMSender {
 
 			logger.debug("Response extracted = " + response);
 
-			byte[] ret = null;
+			ExtractedResponse ret = null;
 
 			if (response == null) {
 				//the response can be null if n-f replies are received but there isn't
@@ -309,7 +322,7 @@ public class ServiceProxy extends TOMSender {
 				if (reqType == TOMMessageType.UNORDERED_REQUEST || reqType == TOMMessageType.UNORDERED_HASHED_REQUEST) {
 					//invoke the operation again, whitout the read-only flag
 					logger.debug("###################RETRY#######################");
-					return invokeOrdered(requestCommonData, requestPrivateData, metadata);
+					return invokeOrdered2(requestCommonData, requestPrivateData, metadata);
 				} else {
 					throw new RuntimeException("Received n-f replies without f+1 of them matching.");
 				}
@@ -319,7 +332,7 @@ public class ServiceProxy extends TOMSender {
 				if (reqType == TOMMessageType.ORDERED_REQUEST) {
 					//Reply to a normal request!
 					if (response.getViewID() == getViewManager().getCurrentViewId()) {
-						ret = response.getContent(); // return the response
+						ret = response; // return the response
 					} else {//if(response.getViewID() > getViewManager().getCurrentViewId())
 						//updated view received
 						reconfigureTo((View) TOMUtil.getObject(response.getContent()));
@@ -329,7 +342,7 @@ public class ServiceProxy extends TOMSender {
 					}
 				} else if (reqType == TOMMessageType.UNORDERED_REQUEST || reqType == TOMMessageType.UNORDERED_HASHED_REQUEST){
 					if (response.getViewID() == getViewManager().getCurrentViewId()) {
-						ret = response.getContent(); // return the response
+						ret = response; // return the response
 					}else{
 						canSendLock.unlock();
 						return invoke(TOMMessageType.ORDERED_REQUEST, requestCommonData, requestPrivateData, metadata);
@@ -346,7 +359,7 @@ public class ServiceProxy extends TOMSender {
 							return invoke(reqType, requestCommonData, requestPrivateData, metadata);
 						}  else if (r instanceof ReconfigureReply) { //reconfiguration executed!
 							reconfigureTo(((ReconfigureReply) r).getView());
-							ret = response.getContent();
+							ret = response;
 						} else{
 							logger.debug("Unknown response type");
 						}
@@ -509,7 +522,7 @@ public class ServiceProxy extends TOMSender {
 		}
 
 
-		public TOMMessage getResponse(int pos, TOMMessage tomMessage){
+		public ExtractedResponse getResponse(int pos, TOMMessage tomMessage){
 
 			if(hashReplies[pos]==null){
 				countHashReplies++;
@@ -530,7 +543,7 @@ public class ServiceProxy extends TOMSender {
 							&& (Arrays.equals(hashReplies[i], hashReplies[replyServerPos]))) {
 						sameContent++;
 						if (sameContent >= replyQuorum) {
-							return reply;
+							return new ExtractedResponse(reply.getViewID(), reply.getContent());
 						}
 					}
 				}

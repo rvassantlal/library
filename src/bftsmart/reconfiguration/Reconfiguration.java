@@ -17,6 +17,7 @@ package bftsmart.reconfiguration;
 
 import bftsmart.tom.ServiceProxy;
 import bftsmart.tom.core.messages.TOMMessageType;
+import bftsmart.tom.util.ExtractedResponse;
 import bftsmart.tom.util.KeyLoader;
 import bftsmart.tom.util.TOMUtil;
 
@@ -76,9 +77,9 @@ public class Reconfiguration {
         byte[] signature = TOMUtil.signMessage(proxy.getViewManager().getStaticConf().getPrivateKey(),
                 request.toString().getBytes());
         request.setSignature(signature);
-        byte[] reply = proxy.invoke(TOMMessageType.RECONFIG, TOMUtil.getBytes(request), null, metadata);
+        ExtractedResponse reply = proxy.invoke(TOMMessageType.RECONFIG, TOMUtil.getBytes(request), null, metadata);
         request = null;
-        return (ReconfigureReply)TOMUtil.getObject(reply);
+        return (ReconfigureReply)TOMUtil.getObject(reply.getContent());
     }
     
     
