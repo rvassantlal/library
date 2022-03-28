@@ -44,7 +44,7 @@ public class BatchReconfiguration {
 				request.toString().getBytes());
 		request.setSignature(signature);
 		byte[] serializedRequest = TOMUtil.getBytes(request);
-		byte[] reply = proxy.invoke(TOMMessageType.RECONFIG, serializedRequest, null, metadata);
+		byte[] reply = proxy.invoke(TOMMessageType.RECONFIG, serializedRequest, null, metadata).getContent();
 		request.clear();
 		return (ReconfigureReply) TOMUtil.getObject(reply);
 	}
