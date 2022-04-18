@@ -59,7 +59,7 @@ public class NettyTOMMessageEncoder extends MessageToByteEncoder<TOMMessage> {
 
         //****** ROBIN BEGIN ******//
         byte[] privateData = sm.getPrivateContent();
-        dataLength += Integer.BYTES + (privateData == null ? -1 : privateData.length);
+        dataLength += Integer.BYTES + (privateData == null ? 0 : privateData.length);
         //****** ROBIN END ******//
         
         /* msg size */
